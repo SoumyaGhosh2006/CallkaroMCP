@@ -20,6 +20,13 @@ export class SummarizationService {
   async summarize(options: SummarizationOptions): Promise<SummarizationResult> {
     const { text, maxLength = 150, style = 'key_points' } = options;
 
+    if (!text || text.trim().length === 0) {
+      throw new Error('Text cannot be empty');
+    }
+    if (maxLength <= 0) {
+      throw new Error('maxLength must be positive');
+    }
+
     try {
       // In production, you would integrate with:
       // - OpenAI GPT for summarization
@@ -97,8 +104,6 @@ export class SummarizationService {
 
   async summarizeCallTranscript(transcript: string, callType: 'support' | 'sales' | 'general' = 'general'): Promise<SummarizationResult> {
     // Specialized summarization for call transcripts
-    const prompt = this.getCallSpecificPrompt(callType);
-    
     return this.summarize({
       text: transcript,
       maxLength: 200,
