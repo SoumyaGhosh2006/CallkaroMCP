@@ -41,8 +41,8 @@ export class TwilioService {
     // Create TwiML for the call
     const twiml = new twilio.twiml.VoiceResponse();
     twiml.say({
-      voice,
-      language,
+      voice: voice as any,
+      language: language as any,
     }, message);
 
     // Make the call
@@ -70,8 +70,8 @@ export class TwilioService {
     return {
       status: call.status,
       duration: call.duration,
-      startTime: call.startTime,
-      endTime: call.endTime,
+      startTime: call.startTime ? call.startTime.toISOString() : null,
+      endTime: call.endTime ? call.endTime.toISOString() : null,
       price: call.price,
     };
   }
@@ -87,7 +87,7 @@ export class TwilioService {
       to: call.to,
       from: call.from,
       status: call.status,
-      startTime: call.startTime,
+      startTime: call.startTime ? call.startTime.toISOString() : null,
       duration: call.duration,
       price: call.price,
     }));
@@ -144,7 +144,7 @@ export class TwilioService {
         callSid: recording.callSid,
         status: recording.status,
         uri: recording.uri,
-        duration: recording.duration,
+        duration: recording.duration ? parseInt(recording.duration) : undefined,
       };
     }
   }

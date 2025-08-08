@@ -18,10 +18,10 @@ import {
   RecordTool,
   RecordToolInput,
   RecordToolResult,
-} from './tools.js';
-import { TwilioService } from './services/twilio.js';
-import { TranscriptionService } from './services/transcription.js';
-import { SummarizationService } from './services/summarization.js';
+} from './tools';
+import { TwilioService } from './services/twilio';
+import { TranscriptionService } from './services/transcription';
+import { SummarizationService } from './services/summarization';
 import dotenv from 'dotenv';
 
 // Load environment variables
@@ -37,16 +37,11 @@ const server = new Server(
   {
     name: 'puch-call-mcp-server',
     version: '1.0.0',
-  },
-  {
-    capabilities: {
-      tools: {},
-    },
   }
 );
 
 // Register tools
-server.setRequestHandler('tools/call', async (params: CallToolInput): Promise<CallToolResult> => {
+(server as any).setRequestHandler('tools/call', async (params: any): Promise<CallToolResult> => {
   try {
     const { to, message, voice = 'alice', language = 'en-US' } = params.arguments;
     
@@ -72,7 +67,7 @@ server.setRequestHandler('tools/call', async (params: CallToolInput): Promise<Ca
   }
 });
 
-server.setRequestHandler('tools/call-status', async (params: CallStatusToolInput): Promise<CallStatusToolResult> => {
+(server as any).setRequestHandler('tools/call-status', async (params: any): Promise<CallStatusToolResult> => {
   try {
     const { callId } = params.arguments;
     
@@ -92,7 +87,7 @@ server.setRequestHandler('tools/call-status', async (params: CallStatusToolInput
   }
 });
 
-server.setRequestHandler('tools/list-calls', async (): Promise<ListCallsToolResult> => {
+(server as any).setRequestHandler('tools/list-calls', async (): Promise<ListCallsToolResult> => {
   try {
     const calls = await twilioService.listCalls();
     
@@ -114,7 +109,7 @@ server.setRequestHandler('tools/list-calls', async (): Promise<ListCallsToolResu
 });
 
 // New tools from Tech Blueprint
-server.setRequestHandler('tools/transcribe', async (params: TranscribeToolInput): Promise<TranscribeToolResult> => {
+(server as any).setRequestHandler('tools/transcribe', async (params: any): Promise<TranscribeToolResult> => {
   try {
     const { callId, audioUrl, language = 'en-US' } = params.arguments;
     
@@ -140,7 +135,7 @@ server.setRequestHandler('tools/transcribe', async (params: TranscribeToolInput)
   }
 });
 
-server.setRequestHandler('tools/summarize', async (params: SummarizeToolInput): Promise<SummarizeToolResult> => {
+(server as any).setRequestHandler('tools/summarize', async (params: any): Promise<SummarizeToolResult> => {
   try {
     const { text, maxLength = 150, style = 'key_points' } = params.arguments;
     
@@ -165,7 +160,7 @@ server.setRequestHandler('tools/summarize', async (params: SummarizeToolInput): 
   }
 });
 
-server.setRequestHandler('tools/record', async (params: RecordToolInput): Promise<RecordToolResult> => {
+(server as any).setRequestHandler('tools/record', async (params: any): Promise<RecordToolResult> => {
   try {
     const { callId, action, recordingChannels = 'dual', recordingStatusCallback } = params.arguments;
     
