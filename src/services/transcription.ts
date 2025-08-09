@@ -1,4 +1,5 @@
 import twilio from 'twilio';
+import { randomUUID } from 'crypto';
 
 export interface TranscriptionOptions {
   callId?: string;
@@ -16,17 +17,25 @@ export interface TranscriptionResult {
 }
 
 export class TranscriptionService {
-  private client: twilio.Twilio;
+  private _client: twilio.Twilio | null = null;
+
+  // Lazy initialization getter
+  private get client(): twilio.Twilio {
+    if (!this._client) {
+      const accountSid = process.env.TWILIO_ACCOUNT_SID;
+      const authToken = process.env.TWILIO_AUTH_TOKEN;
+
+      if (!accountSid || !authToken) {
+        throw new Error('Twilio credentials not found. Please set TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN environment variables.');
+      }
+
+      this._client = twilio(accountSid, authToken);
+    }
+    return this._client;
+  }
 
   constructor() {
-    const accountSid = process.env.TWILIO_ACCOUNT_SID;
-    const authToken = process.env.TWILIO_AUTH_TOKEN;
-
-    if (!accountSid || !authToken) {
-      throw new Error('Twilio credentials not found. Please set TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN environment variables.');
-    }
-
-    this.client = twilio(accountSid, authToken);
+    // Remove initialization from constructor
   }
 
   async transcribe(options: TranscriptionOptions): Promise<TranscriptionResult> {
@@ -37,7 +46,14 @@ export class TranscriptionService {
 
       // If callId is provided, get the recording URL from the call
       if (callId && !audioUrl) {
-        const recordings = await this.client.calls(callId).recordings.list();
+        // Wait for recordings to be available with retry logic
+        const maxRetries = 5;
+        let recordings = [] as any[];
+        for (let i = 0; i < maxRetries; i++) {
+          recordings = await this.client.calls(callId).recordings.list();
+          if (recordings.length > 0) break;
+          await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
+        }
         if (recordings.length === 0) {
           throw new Error(`No recordings found for call ${callId}`);
         }
@@ -56,12 +72,12 @@ export class TranscriptionService {
       const transcription = await this.performTranscription(recordingUrl, language);
 
       return {
-        id: `trans_${Date.now()}`,
+        id: `trans_${randomUUID()}`,
         text: transcription.text,
         confidence: transcription.confidence,
         language,
         duration: transcription.duration,
-        wordCount: transcription.text.split(' ').length,
+        wordCount: transcription.text?.trim().split(/\s+/).filter(word => word.length > 0).length || 0,
       };
     } catch (error) {
       console.error('Transcription error:', error);

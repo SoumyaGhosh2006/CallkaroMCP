@@ -1,5 +1,9 @@
 # Puch Call MCP Server
 
+<<<<<<< HEAD
+
+=======
+>>>>>>> ef2f7a0bffb25876a4b7e080ebbfe110f64055e2
 An MCP (Model Context Protocol) server that enables the Puch WhatsApp bot to make phone calls to customers using Twilio.
 
 ## 🚀 Features
