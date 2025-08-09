@@ -1,4 +1,4 @@
-import { Server as WebSocketServer, WebSocket } from 'ws';
+import * as WebSocket from 'ws';
 import { Server as HttpServer } from 'http';
 import { Server as HttpsServer } from 'https';
 import { randomUUID } from 'crypto';
@@ -15,51 +15,55 @@ export interface WebSocketMessage {
 }
 
 export class WSServer {
-  private wss: WebSocketServer;
-  private connections: Map<ConnectionId, WebSocket> = new Map();
+  private wss: WebSocket.Server;
+  private connections: Map<ConnectionId, WebSocket.WebSocket> = new Map();
   private streamHandlers: Map<string, (message: WebSocketMessage, connectionId: string) => void> = new Map();
 
   constructor(server: HttpServer | HttpsServer) {
-    this.wss = new WebSocketServer({ server });
+    this.wss = new WebSocket.Server({ server });
     this.setupEventHandlers();
   }
 
   private setupEventHandlers(): void {
-    this.wss.on('connection', (ws: WebSocket) => {
-      const connectionId = randomUUID();
-      this.connections.set(connectionId, ws);
-      console.log(`New WebSocket connection: ${connectionId}`);
+    this.wss.on('connection', (ws: WebSocket.WebSocket) => {
+      this.handleConnection(ws);
+    });
+  }
 
-      ws.on('message', (data: string) => {
-        try {
-          const message: WebSocketMessage = JSON.parse(data);
-          this.handleMessage(message, connectionId);
-        } catch (error) {
-          console.error('Error parsing WebSocket message:', error);
-          this.send(connectionId, {
-            type: 'error',
-            error: 'Invalid message format',
-          });
-        }
-      });
+  private handleConnection(ws: WebSocket.WebSocket): void {
+    const connectionId = randomUUID();
+    this.connections.set(connectionId, ws);
+    console.log(`New WebSocket connection: ${connectionId}`);
 
-      ws.on('close', () => {
-        console.log(`Connection closed: ${connectionId}`);
-        this.connections.delete(connectionId);
-        // Notify any stream handlers about the disconnection
-        this.streamHandlers.forEach((handler, streamSid) => {
-          handler({
-            type: 'error',
-            streamSid,
-            error: 'Connection closed',
-          }, connectionId);
+    ws.on('message', (data: string) => {
+      try {
+        const message: WebSocketMessage = JSON.parse(data);
+        this.handleMessage(message, connectionId);
+      } catch (error) {
+        console.error('Error parsing WebSocket message:', error);
+        this.send(connectionId, {
+          type: 'error',
+          error: 'Invalid message format',
         });
-      });
+      }
+    });
 
-      ws.on('error', (error) => {
-        console.error('WebSocket error:', error);
-        this.connections.delete(connectionId);
+    ws.on('close', () => {
+      console.log(`Connection closed: ${connectionId}`);
+      this.connections.delete(connectionId);
+      // Notify any stream handlers about the disconnection
+      this.streamHandlers.forEach((handler, streamSid) => {
+        handler({
+          type: 'error',
+          streamSid,
+          error: 'Connection closed',
+        }, connectionId);
       });
+    });
+
+    ws.on('error', (error) => {
+      console.error('WebSocket error:', error);
+      this.connections.delete(connectionId);
     });
   }
 
