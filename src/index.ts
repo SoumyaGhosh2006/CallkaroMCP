@@ -1,5 +1,8 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import http from 'http';
+import express from 'express';
+import cors from 'cors';
 import {
   CallTool,
   CallToolInput,
@@ -27,26 +30,48 @@ import { TranscriptionService } from './services/transcription';
 import { SummarizationService } from './services/summarization';
 import { AuthService } from './services/auth';
 import dotenv from 'dotenv';
+import { WSServer } from './services/WebSocketServer';
 
 // Load environment variables
 dotenv.config();
 
+// Initialize Express app
+const app = express();
+app.use(cors());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Create HTTP server
+const server = http.createServer(app);
+
 // Initialize services
 const twilioService = new TwilioService();
-const transcriptionService = new TranscriptionService();
+const transcriptionService = new TranscriptionService(server); // Pass server to initialize WebSocket
 const summarizationService = new SummarizationService();
 const authService = new AuthService();
 
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
 // Create MCP server
-const server = new Server(
+const mcpServer = new Server(
   {
     name: 'puch-call-mcp-server',
     version: '1.0.0',
   }
 );
 
+// Start the HTTP server
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+  console.log(`WebSocket server running on ws://localhost:${PORT}`);
+});
+
 // Register tools
-(server as any).setRequestHandler('tools/call', async (params: any): Promise<CallToolResult> => {
+(mcpServer as any).setRequestHandler('tools/call', async (params: any): Promise<CallToolResult> => {
   try {
     const { to, message, voice = 'alice', language = 'en-US' } = params.arguments;
     
@@ -224,9 +249,32 @@ const server = new Server(
   }
 });
 
-// Start the server
+// Start the MCP server
 const transport = new StdioServerTransport();
-await server.connect(transport);
+
+// Connect to the MCP server
+mcpServer.connect(transport).then(() => {
+  console.log('Puch Call MCP Server is running...');
+  
+  // Handle graceful shutdown
+  process.on('SIGTERM', async () => {
+    console.log('SIGTERM received. Shutting down gracefully...');
+    
+    // Close the HTTP server
+    server.close(async () => {
+      console.log('HTTP server closed');
+      
+      // Close the MCP server
+      await mcpServer.close();
+      console.log('MCP server closed');
+      
+      process.exit(0);
+    });
+  });
+}).catch(error => {
+  console.error('Failed to start MCP server:', error);
+  process.exit(1);
+});
 
 console.log('Puch Call MCP Server started successfully!');
 console.log('Available tools:');
