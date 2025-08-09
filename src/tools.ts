@@ -1,5 +1,24 @@
 import { z } from 'zod';
 
+// Validate Tool
+export const ValidateTool = {
+  name: 'validate',
+  description: 'Validate a bearer token and return user information',
+  inputSchema: z.object({
+    token: z.string().describe('The bearer token to validate'),
+  }),
+};
+
+export type ValidateToolInput = {
+  arguments: z.infer<typeof ValidateTool.inputSchema>;
+};
+
+export type ValidateToolResult = {
+  phoneNumber: string; // Format: {country_code}{number} (e.g., 919876543210 for +91-9876543210)
+  isValid: boolean;
+  message?: string;
+};
+
 // Call Tool
 export const CallTool = {
   name: 'call',

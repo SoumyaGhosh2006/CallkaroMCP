@@ -18,10 +18,14 @@ import {
   RecordTool,
   RecordToolInput,
   RecordToolResult,
+  ValidateTool,
+  ValidateToolInput,
+  ValidateToolResult,
 } from './tools';
 import { TwilioService } from './services/twilio';
 import { TranscriptionService } from './services/transcription';
 import { SummarizationService } from './services/summarization';
+import { AuthService } from './services/auth';
 import dotenv from 'dotenv';
 
 // Load environment variables
@@ -31,6 +35,7 @@ dotenv.config();
 const twilioService = new TwilioService();
 const transcriptionService = new TranscriptionService();
 const summarizationService = new SummarizationService();
+const authService = new AuthService();
 
 // Create MCP server
 const server = new Server(
@@ -187,12 +192,45 @@ const server = new Server(
   }
 });
 
+// Register validate tool handler
+(server as any).setRequestHandler('tools/validate', async (params: ValidateToolInput): Promise<ValidateToolResult> => {
+  try {
+    const { token } = params.arguments;
+    
+    console.log(`Validating token: ${token.substring(0, 8)}...`);
+    
+    const { user, message } = await authService.validateToken(token);
+    
+    if (!user) {
+      return {
+        phoneNumber: '',
+        isValid: false,
+        message: message || 'Invalid token'
+      };
+    }
+    
+    return {
+      phoneNumber: user.phoneNumber,
+      isValid: true,
+      message: 'Token validated successfully'
+    };
+  } catch (error) {
+    console.error('Error validating token:', error);
+    return {
+      phoneNumber: '',
+      isValid: false,
+      message: `Error validating token: ${error instanceof Error ? error.message : 'Unknown error'}`
+    };
+  }
+});
+
 // Start the server
 const transport = new StdioServerTransport();
 await server.connect(transport);
 
 console.log('Puch Call MCP Server started successfully!');
 console.log('Available tools:');
+console.log('- validate: Validate a bearer token and return user information');
 console.log('- call: Make a phone call to a customer');
 console.log('- call-status: Get the status of a call');
 console.log('- list-calls: List all recent calls');
