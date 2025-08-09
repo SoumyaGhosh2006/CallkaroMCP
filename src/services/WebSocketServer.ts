@@ -1,4 +1,4 @@
-import * as WebSocket from 'ws';
+import { WebSocket, WebSocketServer } from 'ws';
 import { Server as HttpServer } from 'http';
 import { Server as HttpsServer } from 'https';
 import { randomUUID } from 'crypto';
@@ -15,22 +15,22 @@ export interface WebSocketMessage {
 }
 
 export class WSServer {
-  private wss: WebSocket.Server;
-  private connections: Map<ConnectionId, WebSocket.WebSocket> = new Map();
+  private wss: WebSocketServer;
+  private connections: Map<ConnectionId, WebSocket> = new Map();
   private streamHandlers: Map<string, (message: WebSocketMessage, connectionId: string) => void> = new Map();
 
   constructor(server: HttpServer | HttpsServer) {
-    this.wss = new WebSocket.Server({ server });
+    this.wss = new WebSocketServer({ server });
     this.setupEventHandlers();
   }
 
   private setupEventHandlers(): void {
-    this.wss.on('connection', (ws: WebSocket.WebSocket) => {
+    this.wss.on('connection', (ws) => {
       this.handleConnection(ws);
     });
   }
 
-  private handleConnection(ws: WebSocket.WebSocket): void {
+  private handleConnection(ws: WebSocket): void {
     const connectionId = randomUUID();
     this.connections.set(connectionId, ws);
     console.log(`New WebSocket connection: ${connectionId}`);
@@ -61,7 +61,7 @@ export class WSServer {
       });
     });
 
-    ws.on('error', (error) => {
+    ws.on('error', (error: Error) => {
       console.error('WebSocket error:', error);
       this.connections.delete(connectionId);
     });
