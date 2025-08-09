@@ -3,6 +3,7 @@ import http from 'http';
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import WebSocket, { WebSocketServer } from 'ws';
 import { createMCPServer } from './mcpServer';
 import { TwilioService } from './services/twilio';
 import { TranscriptionService } from './services/transcription';
@@ -86,16 +87,64 @@ server.listen(PORT, () => {
   console.log(`WebSocket server running on ws://localhost:${PORT}`);
 });
 
-// Connect MCP server to transport if not in test environment
-if (process.env.NODE_ENV !== 'test') {
-  const transport = new StdioServerTransport();
-  mcpServer.connect(transport).then(() => {
-    console.log('MCP server connected to transport');
-  }).catch((error: Error) => {
-    console.error('Failed to connect MCP server to transport:', error);
-    process.exit(1);
-  });
+// Define a custom transport interface for MCP over WebSocket
+interface WebSocketTransport {
+  send(message: any): void;
+  onMessage(callback: (message: any) => void): void;
+  close(): void;
 }
+
+// Set up WebSocket server for MCP
+const wss = new WebSocketServer({ server });
+
+wss.on('connection', (ws: WebSocket) => {
+  console.log('New WebSocket connection for MCP');
+  
+  const transport: WebSocketTransport = {
+    send: (message: any) => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify(message));
+      }
+    },
+    onMessage: (callback: (message: any) => void) => {
+      ws.on('message', (data: WebSocket.Data) => {
+        try {
+          const message = typeof data === 'string' ? JSON.parse(data) : JSON.parse(data.toString());
+          callback(message);
+        } catch (error) {
+          console.error('Error parsing WebSocket message:', error);
+        }
+      });
+    },
+    close: () => ws.close()
+  };
+
+  // Create a transport adapter for MCP
+  const mcpTransport = {
+    start: () => {
+      console.log('MCP WebSocket transport started');
+      return Promise.resolve();
+    },
+    send: transport.send,
+    onMessage: transport.onMessage,
+    close: transport.close
+  };
+
+  // Connect MCP server to WebSocket transport
+  mcpServer.connect(mcpTransport as any).then(() => {
+    console.log('MCP server connected to WebSocket transport');
+  }).catch((error: Error) => {
+    console.error('Failed to connect MCP server to WebSocket transport:', error);
+  });
+
+  ws.on('close', () => {
+    console.log('WebSocket connection closed');
+  });
+
+  ws.on('error', (error: Error) => {
+    console.error('WebSocket error:', error);
+  });
+});
 
 // Handle graceful shutdown
 process.on('SIGTERM', async () => {

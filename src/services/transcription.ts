@@ -7,7 +7,8 @@ import { pipeline, Readable } from 'stream';
 import { tmpdir } from 'os';
 import path from 'path';
 import { WSServer } from './WebSocketServer';
-import { AudioProcessor, type WebSocketMessage } from './AudioProcessor';
+import { AudioProcessor } from './AudioProcessor';
+import type { WebSocketMessage } from '../types/websocket';
 
 const streamPipeline = promisify(pipeline);
 

@@ -5,15 +5,7 @@ import { createWriteStream, promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import path from 'path';
 import { WSServer } from './WebSocketServer';
-
-export type WebSocketMessage = {
-  type: 'connect' | 'media' | 'mark' | 'error' | 'transcription';
-  streamSid?: string;
-  track?: 'inbound' | 'outbound' | 'both';
-  payload?: any;
-  event?: string;
-  error?: string;
-};
+import { WebSocketMessage } from '../types/websocket';
 
 const pipelineAsync = promisify(pipeline);
 

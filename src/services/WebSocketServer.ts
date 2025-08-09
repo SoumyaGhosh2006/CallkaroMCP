@@ -2,17 +2,9 @@ import { WebSocket, WebSocketServer } from 'ws';
 import { Server as HttpServer } from 'http';
 import { Server as HttpsServer } from 'https';
 import { randomUUID } from 'crypto';
+import { WebSocketMessage } from '../types/websocket';
 
 type ConnectionId = string;
-
-export interface WebSocketMessage {
-  type: 'connect' | 'media' | 'mark' | 'error' | 'transcription';
-  streamSid?: string;
-  track?: 'inbound' | 'outbound' | 'both';
-  payload?: any;
-  event?: string;
-  error?: string;
-}
 
 export class WSServer {
   private wss: WebSocketServer;
@@ -67,20 +59,57 @@ export class WSServer {
     });
   }
 
-  private handleMessage(message: WebSocketMessage, connectionId: string): void {
-    if (message.type === 'connect' && message.streamSid) {
-      console.log(`Stream connected: ${message.streamSid}`);
-      // You can add authentication/authorization here if needed
+  private handleMessage(message: any, connectionId: string): void {
+    try {
+      // Handle MCP protocol messages
+      if (message.jsonrpc === '2.0' && message.method) {
+        console.log(`MCP method call: ${message.method}`);
+        
+        // Forward to appropriate handler based on method
+        if (message.method.startsWith('tools/')) {
+          const handler = this.streamHandlers.get(message.method);
+          if (handler) {
+            const mcpMessage: WebSocketMessage = {
+              type: 'mcp',
+              method: message.method,
+              params: message.params || {}
+            };
+            if (message.id) mcpMessage.id = message.id;
+            
+            handler(mcpMessage, connectionId);
+          } else {
+            console.warn(`No handler for MCP method: ${message.method}`);
+            const errorResponse: WebSocketMessage = {
+              type: 'error',
+              error: `No handler for method: ${message.method}`
+            };
+            if (message.id) errorResponse.id = message.id;
+            
+            this.send(connectionId, errorResponse);
+          }
+        } else {
+          console.warn('Unhandled MCP message type:', message.method);
+        }
+      }
+      // Handle legacy WebSocket messages
+      else if (message.type && message.streamSid) {
+        console.log(`Stream message: ${message.type} for ${message.streamSid}`);
+        const handler = this.streamHandlers.get(message.streamSid);
+        if (handler) {
+          handler(message as WebSocketMessage, connectionId);
+        } else {
+          console.warn('No handler for stream:', message.streamSid);
+        }
+      } else {
+        console.warn('Unhandled message format:', message);
+      }
+    } catch (error) {
+      console.error('Error handling message:', error);
       this.send(connectionId, {
-        type: 'connect',
-        streamSid: message.streamSid,
+        type: 'error',
+        error: 'Internal server error',
+        ...(message.id && { id: message.id })
       });
-    } else if (message.streamSid && this.streamHandlers.has(message.streamSid)) {
-      // Forward message to the appropriate stream handler
-      const handler = this.streamHandlers.get(message.streamSid)!;
-      handler(message, connectionId);
-    } else {
-      console.warn('Unhandled message type or missing streamSid:', message.type);
     }
   }
 
