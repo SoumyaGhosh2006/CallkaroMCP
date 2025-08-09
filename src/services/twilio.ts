@@ -64,6 +64,15 @@ export class TwilioService {
     };
   }
 
+  /**
+   * Get call details by SID
+   * @param callSid The Twilio call SID
+   * @returns Call details
+   */
+  async getCall(callSid: string) {
+    return this.client.calls(callSid).fetch();
+  }
+
   async getCallStatus(callId: string): Promise<CallStatus> {
     const call = await this.client.calls(callId).fetch();
 
