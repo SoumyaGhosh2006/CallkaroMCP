@@ -31,6 +31,7 @@ import { SummarizationService } from './services/summarization';
 import { AuthService } from './services/auth';
 import dotenv from 'dotenv';
 import { WSServer } from './services/WebSocketServer';
+import { MCPConnectionTool } from './tools';
 
 // Load environment variables
 dotenv.config();
@@ -53,6 +54,50 @@ const authService = new AuthService();
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// MCP connection endpoint
+app.post('/mcp/connect', (req, res) => {
+  try {
+    const { url, token } = req.body;
+    
+    // Validate the connection request
+    if (!url) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'URL is required' 
+      });
+    }
+    
+    // Here you would typically:
+    // 1. Validate the token if authentication is required
+    // 2. Store the connection details
+    // 3. Initialize any required services
+    
+    console.log(`MCP connection established with URL: ${url}`);
+    
+    res.status(200).json({ 
+      success: true, 
+      message: 'MCP connection established',
+      serverInfo: {
+        name: 'puch-call-mcp-server',
+        version: '1.0.0',
+        capabilities: [
+          'call',
+          'transcribe',
+          'summarize',
+          'record',
+          'validate'
+        ]
+      }
+    });
+  } catch (error) {
+    console.error('Error handling MCP connection:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to establish MCP connection' 
+    });
+  }
 });
 
 // Create MCP server

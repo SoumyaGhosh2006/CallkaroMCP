@@ -1,5 +1,15 @@
 import { z } from 'zod';
 
+// MCP Connection Tool
+export const MCPConnectionTool = {
+  name: 'mcp_connection',
+  description: 'Handle MCP server connection and authentication',
+  inputSchema: z.object({
+    url: z.string().url().describe('The public URL of the MCP server'),
+    token: z.string().optional().describe('Authentication token if required'),
+  }),
+};
+
 // Validate Tool
 export const ValidateTool = {
   name: 'validate',
@@ -7,6 +17,10 @@ export const ValidateTool = {
   inputSchema: z.object({
     token: z.string().describe('The bearer token to validate'),
   }),
+};
+
+export type MCPConnectionToolInput = {
+  arguments: z.infer<typeof MCPConnectionTool.inputSchema>;
 };
 
 export type ValidateToolInput = {
