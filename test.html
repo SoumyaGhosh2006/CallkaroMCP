@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>MCP Tools Tester</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        #output { 
+            margin-top: 10px; 
+            padding: 10px; 
+            border: 1px solid #ccc; 
+            min-height: 200px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: monospace;
+            white-space: pre-wrap;
+            background: #f8f9fa;
+        }
+        .tool-section { 
+            margin: 15px 0; 
+            padding: 10px;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+        }
+        .tool-section h3 { margin-top: 0; }
+        button { 
+            margin: 2px;
+            padding: 6px 12px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover { background: #0056b3; }
+        button:disabled { 
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+        .connection-status { 
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #dc3545;
+            margin-right: 5px;
+        }
+        .connected { background: #28a745; }
+        .test-area { margin: 10px 0; }
+        textarea, input {
+            width: 100%;
+            margin: 5px 0;
+            padding: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>MCP Tools Tester</h1>
+    
+    <div class="tool-section">
+        <h3>Connection</h3>
+        <div>
+            <span id="status" class="connection-status"></span>
+            <span id="status-text">Disconnected</span>
+            <button onclick="connect()">Connect</button>
+            <button onclick="disconnect()">Disconnect</button>
+        </div>
+    </div>
+
+    <div class="tool-section">
+        <h3>1. Validate Token</h3>
+        <div class="test-area">
+            <input type="text" id="token-input" placeholder="Enter token" value="test-token-123">
+            <button onclick="testValidate()">Validate</button>
+        </div>
+    </div>
+
+    <div class="tool-section">
+        <h3>2. Make a Call</h3>
+        <div class="test-area">
+            <input type="text" id="to-number" placeholder="Phone number (e.g., +1234567890)">
+            <input type="text" id="from-number" placeholder="From number (optional)">
+            <textarea id="call-message" placeholder="Message to say (optional)"></textarea>
+            <button onclick="testCall()">Make Call</button>
+        </div>
+    </div>
+
+    <div class="tool-section">
+        <h3>3. Call Status</h3>
+        <div class="test-area">
+            <input type="text" id="call-sid" placeholder="Call SID">
+            <button onclick="testCallStatus()">Get Status</button>
+        </div>
+    </div>
+
+    <div class="tool-section">
+        <h3>4. List Calls</h3>
+        <div class="test-area">
+            <input type="number" id="call-limit" value="10" min="1" max="50">
+            <button onclick="testListCalls()">List Calls</button>
+        </div>
+    </div>
+
+    <div class="tool-section">
+        <h3>5. Transcribe</h3>
+        <div class="test-area">
+            <input type="text" id="audio-url" placeholder="Audio URL">
+            <button onclick="testTranscribe()">Transcribe</button>
+        </div>
+    </div>
+
+    <div class="tool-section">
+        <h3>6. Summarize</h3>
+        <div class="test-area">
+            <textarea id="summary-text" placeholder="Enter text to summarize"></textarea>
+            <button onclick="testSummarize()">Summarize</button>
+        </div>
+    </div>
+
+    <div class="tool-section">
+        <h3>7. Record</h3>
+        <div class="test-area">
+            <input type="text" id="record-call-sid" placeholder="Call SID">
+            <button onclick="testStartRecording()">Start Recording</button>
+            <button onclick="testStopRecording()">Stop Recording</button>
+        </div>
+    </div>
+
+    <h3>Console Output</h3>
+    <div id="output">Ready to connect...</div>
+
+    <script>
+        let ws;
+        let messageId = 1;
+        const output = document.getElementById('output');
+        const statusIndicator = document.getElementById('status');
+        const statusText = document.getElementById('status-text');
+
+        function updateConnectionStatus(connected) {
+            statusIndicator.className = 'connection-status ' + (connected ? 'connected' : '');
+            statusText.textContent = connected ? 'Connected' : 'Disconnected';
+        }
+
+        function log(message, isError = false) {
+            const timestamp = new Date().toISOString().substr(11, 12);
+            const logEntry = document.createElement('div');
+            logEntry.innerHTML = `<span style="color: ${isError ? 'red' : '#666'}">[${timestamp}]</span> ${message}`;
+            output.appendChild(logEntry);
+            output.scrollTop = output.scrollHeight;
+        }
+
+        function sendRequest(method, params = {}) {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                log('⚠️ Not connected to WebSocket server', true);
+                return null;
+            }
+            
+            const id = messageId++;
+            const message = {
+                jsonrpc: "2.0",
+                method: method,
+                id: id,
+                params: params
+            };
+            
+            ws.send(JSON.stringify(message));
+            log(`📤 Sent (${id}): ${JSON.stringify(message, null, 2)}`);
+            return id;
+        }
+
+        function connect() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                log('Already connected to WebSocket server');
+                return;
+            }
+
+            ws = new WebSocket('ws://localhost:3000/mcp');
+            
+            ws.onopen = () => {
+                updateConnectionStatus(true);
+                log('✅ Connected to WebSocket server');
+            };
+            
+            ws.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    log(`📥 Received (${data.id || 'notification'}): ${JSON.stringify(data, null, 2)}`);
+                } catch (e) {
+                    log(`📥 Received: ${event.data}`);
+                }
+            };
+            
+            ws.onerror = (error) => {
+                log(`❌ WebSocket error: ${error}`, true);
+                updateConnectionStatus(false);
+            };
+            
+            ws.onclose = () => {
+                log('❌ Disconnected from WebSocket server');
+                updateConnectionStatus(false);
+                ws = null;
+            };
+        }
+
+        function disconnect() {
+            if (ws) {
+                ws.close();
+                ws = null;
+            }
+        }
+
+        // Tool test functions
+        function testValidate() {
+            const token = document.getElementById('token-input').value;
+            sendRequest('tools/validate', { token });
+        }
+
+        function testCall() {
+            const to = document.getElementById('to-number').value;
+            const from = document.getElementById('from-number').value || undefined;
+            const message = document.getElementById('call-message').value || undefined;
+            
+            if (!to) {
+                log('⚠️ Please enter a phone number', true);
+                return;
+            }
+            
+            sendRequest('tools/call', { to, from, message });
+        }
+
+        function testCallStatus() {
+            const callSid = document.getElementById('call-sid').value;
+            
+            if (!callSid) {
+                log('⚠️ Please enter a Call SID', true);
+                return;
+            }
+            
+            sendRequest('tools/call-status', { callSid });
+        }
+
+        function testListCalls() {
+            const limit = parseInt(document.getElementById('call-limit').value) || 10;
+            sendRequest('tools/list-calls', { limit });
+        }
+
+        function testTranscribe() {
+            const audioUrl = document.getElementById('audio-url').value;
+            
+            if (!audioUrl) {
+                log('⚠️ Please enter an audio URL', true);
+                return;
+            }
+            
+            sendRequest('tools/transcribe', { audioUrl });
+        }
+
+        function testSummarize() {
+            const text = document.getElementById('summary-text').value;
+            
+            if (!text) {
+                log('⚠️ Please enter some text to summarize', true);
+                return;
+            }
+            
+            sendRequest('tools/summarize', { text });
+        }
+
+        function testStartRecording() {
+            const callSid = document.getElementById('record-call-sid').value;
+            
+            if (!callSid) {
+                log('⚠️ Please enter a Call SID', true);
+                return;
+            }
+            
+            sendRequest('tools/record', { callSid, action: 'start' });
+        }
+
+        function testStopRecording() {
+            const callSid = document.getElementById('record-call-sid').value;
+            
+            if (!callSid) {
+                log('⚠️ Please enter a Call SID', true);
+                return;
+            }
+            
+            sendRequest('tools/record', { callSid, action: 'stop' });
+        }
+
+        // Initialize
+        updateConnectionStatus(false);
+    </script>
+</body>
+</html>

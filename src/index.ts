@@ -26,7 +26,26 @@ const server = http.createServer(app);
 const twilioService = new TwilioService();
 const summarizationService = new SummarizationService();
 const authService = new AuthService();
-const transcriptionService = new TranscriptionService(server);
+
+// Initialize services that need the HTTP server
+const transcriptionService = new TranscriptionService();
+
+// Create and set up WebSocket server
+const wss = new WebSocketServer({ noServer: true });
+
+// Handle upgrade requests
+server.on('upgrade', (request, socket, head) => {
+  const pathname = new URL(request.url || '', `http://${request.headers.host}`).pathname;
+  
+  if (pathname === '/mcp') {
+    wss.handleUpgrade(request, socket, head, (ws) => {
+      wss.emit('connection', ws, request);
+    });
+  } else {
+    // Handle other WebSocket paths if needed
+    socket.destroy();
+  }
+});
 
 // Create MCP server with initialized services
 const mcpServer = createMCPServer(server, {
@@ -85,65 +104,6 @@ const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   console.log(`WebSocket server running on ws://localhost:${PORT}`);
-});
-
-// Define a custom transport interface for MCP over WebSocket
-interface WebSocketTransport {
-  send(message: any): void;
-  onMessage(callback: (message: any) => void): void;
-  close(): void;
-}
-
-// Set up WebSocket server for MCP
-const wss = new WebSocketServer({ server });
-
-wss.on('connection', (ws: WebSocket) => {
-  console.log('New WebSocket connection for MCP');
-  
-  const transport: WebSocketTransport = {
-    send: (message: any) => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify(message));
-      }
-    },
-    onMessage: (callback: (message: any) => void) => {
-      ws.on('message', (data: WebSocket.Data) => {
-        try {
-          const message = typeof data === 'string' ? JSON.parse(data) : JSON.parse(data.toString());
-          callback(message);
-        } catch (error) {
-          console.error('Error parsing WebSocket message:', error);
-        }
-      });
-    },
-    close: () => ws.close()
-  };
-
-  // Create a transport adapter for MCP
-  const mcpTransport = {
-    start: () => {
-      console.log('MCP WebSocket transport started');
-      return Promise.resolve();
-    },
-    send: transport.send,
-    onMessage: transport.onMessage,
-    close: transport.close
-  };
-
-  // Connect MCP server to WebSocket transport
-  mcpServer.connect(mcpTransport as any).then(() => {
-    console.log('MCP server connected to WebSocket transport');
-  }).catch((error: Error) => {
-    console.error('Failed to connect MCP server to WebSocket transport:', error);
-  });
-
-  ws.on('close', () => {
-    console.log('WebSocket connection closed');
-  });
-
-  ws.on('error', (error: Error) => {
-    console.error('WebSocket error:', error);
-  });
 });
 
 // Handle graceful shutdown
