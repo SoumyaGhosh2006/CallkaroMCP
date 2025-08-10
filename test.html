@@ -173,7 +173,7 @@
                 return;
             }
 
-            ws = new WebSocket('ws://localhost:3000/mcp');
+            ws = new WebSocket('wss://8cb487bd172c.ngrok-free.app/mcp');
             
             ws.onopen = () => {
                 updateConnectionStatus(true);
